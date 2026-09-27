@@ -31,11 +31,20 @@ jobs:
           server-username: NEXUS_USERNAME
           server-password: NEXUS_PASSWORD
 
-      - name: Derive version from release tag
+      - name: Derive version
+        env:
+          # Passed via env rather than inlined into the script to avoid shell injection
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [[ -z "$VERSION" || "$VERSION" == *-SNAPSHOT ]]; then
-            echo "::error::Invalid release version '$VERSION' from tag '$GITHUB_REF_NAME'"
+          RAW="${INPUT_VERSION:-$GITHUB_REF_NAME}"
+          VERSION="${RAW#v}"
+          # Must be x.y.z (numbers only, no leading zeros), e.g. 1.2.3
+          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Invalid release version '$VERSION' (from '$RAW'), expected x.y.z"
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]] && git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Tag v$VERSION already exists"
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -47,6 +56,7 @@ jobs:
           NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
 
       - name: Attach jars to GitHub release
+        if: github.event_name == 'release'
         run: gh release upload "$GITHUB_REF_NAME" target/*.jar --clobber
         env:
           GH_TOKEN: ${{ github.token }}
