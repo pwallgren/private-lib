@@ -1,11 +1,19 @@
 name: Release
 
 on:
+  # Publishing a release in the GitHub UI deploys that tag
   release:
     types: [published]
+  # "Run workflow" button: deploys the selected branch, then creates the release
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g. 1.2.3)'
+        required: true
+        type: string
 
 permissions:
-  contents: write # needed to attach the jar to the GitHub release
+  contents: write # needed to create the release / attach the jars
 
 jobs:
   publish:
